@@ -417,5 +417,4 @@ func toStatus(state string) (Status, error) {
 	default:
 		return Unknown, fmt.Errorf("Unknown state: %s", state)
 	}
-
 }

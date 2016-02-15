@@ -2,8 +2,10 @@ package vagrantutil
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/go-version"
@@ -234,6 +236,43 @@ func TestStatus(t *testing.T) {
 
 	if vg.State != status.String() {
 		t.Errorf("Internal state should be: %s, got: %s", status, vg.State)
+	}
+}
+
+func TestStressCreate(t *testing.T) {
+	tmp, err := ioutil.TempDir("", "vagrantutil")
+	if err != nil {
+		t.Fatalf("TempDir()=%s", err)
+	}
+	defer os.RemoveAll(tmp)
+
+	vagrants := make([]*Vagrant, 100)
+
+	for i := range vagrants {
+		v, err := NewVagrant(filepath.Join(tmp, fmt.Sprintf("stress-%d", i)))
+		if err != nil {
+			t.Fatalf("NewVagrant()=%s", err)
+		}
+		vagrants[i] = v
+	}
+
+	errch := make(chan error, len(vagrants))
+
+	for _, v := range vagrants {
+		go func(v *Vagrant) {
+			err := v.Create(testVagrantFile)
+			if err == nil {
+				f, e := os.Open(filepath.Join(v.VagrantfilePath, "Vagrantfile"))
+				err = nonil(e, f.Close())
+			}
+			errch <- err
+		}(v)
+	}
+
+	for i := 0; i < len(vagrants); i++ {
+		if err := <-errch; err != nil {
+			t.Errorf("creating vagrant box failed: %s", err)
+		}
 	}
 }
 
